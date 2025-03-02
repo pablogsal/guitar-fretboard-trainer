@@ -1,3 +1,4 @@
+// src/components/ProgressStats.tsx
 import React from 'react';
 import { ProgressEntry } from '../types';
 import { STRING_COLORS } from '../utils/noteUtils';
@@ -23,6 +24,14 @@ const ProgressStats: React.FC<ProgressStatsProps> = ({
     ? (progress.filter(entry => entry.success).length / progress.length) * 100
     : 0;
   
+  // Safe time formatting function
+  const formatTime = (timeMs: number | undefined): string => {
+    if (timeMs === undefined || timeMs <= 0) {
+      return "0.00s";
+    }
+    return `${(timeMs / 1000).toFixed(2)}s`;
+  };
+  
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
       <div className="bg-gray-800 rounded-xl p-6 shadow-lg">
@@ -31,7 +40,7 @@ const ProgressStats: React.FC<ProgressStatsProps> = ({
           <div>
             <div className="text-sm text-gray-400">ELAPSED TIME</div>
             <div className="text-2xl font-mono">
-              {(elapsedTime / 1000).toFixed(2)}s
+              {formatTime(elapsedTime)}
             </div>
           </div>
           <div>
@@ -86,7 +95,7 @@ const ProgressStats: React.FC<ProgressStatsProps> = ({
               <div className="flex items-center">
                 <div 
                   className="w-3 h-12 mr-3 rounded-sm" 
-                  style={{ backgroundColor: STRING_COLORS[parseInt(entry.string)] }}
+                  style={{ backgroundColor: STRING_COLORS[entry.stringNumber] }}
                 ></div>
                 <div>
                   <div className="font-semibold flex items-center">
@@ -100,7 +109,7 @@ const ProgressStats: React.FC<ProgressStatsProps> = ({
                 </div>
               </div>
               <div className="text-right">
-                <div className="font-mono">{(entry.timeTaken / 1000).toFixed(2)}s</div>
+                <div className="font-mono">{formatTime(entry.timeTaken)}</div>
                 <div className="text-sm text-gray-400">
                   {entry.errors > 0 && <span className="text-red-400">{entry.errors} errors</span>}
                 </div>

@@ -146,14 +146,10 @@ const WaveformVisualizer: React.FC<WaveformVisualizerProps> = ({
     const octaveMatch = detectedNote.match(/\d+$/);
     const octave = octaveMatch ? octaveMatch[0] : '';
     
-    // Determine octave category (3 and below is "low", 4 and above is "high")
-    const octaveNumber = parseInt(octave);
-    const octaveCategory = octaveNumber >= 4 ? 'high' : 'low';
-    
-    return { note: noteName, octave, octaveCategory };
+    return { note: noteName, octave};
   };
   
-  const { note, octave, octaveCategory } = parseNoteInfo();
+  const { note, octave} = parseNoteInfo();
   
   return (
     <div className="relative waveform-container w-full bg-gray-800/50 rounded-lg overflow-hidden mb-6">
@@ -202,21 +198,6 @@ const WaveformVisualizer: React.FC<WaveformVisualizerProps> = ({
                 >
                   {note || '–'}
                 </span>
-                <span 
-                  className="text-xs ml-1 font-semibold"
-                  style={{ color: octaveCategory === 'high' ? '#3b82f6' : '#f97316' }}
-                >
-                  {octave && `(${octave})`}
-                </span>
-                {octaveCategory && (
-                  <span 
-                    className={`text-xs ml-2 px-1.5 py-0.5 rounded ${
-                      octaveCategory === 'high' ? 'bg-blue-500/20 text-blue-300' : 'bg-orange-500/20 text-orange-300'
-                    }`}
-                  >
-                    {octaveCategory}
-                  </span>
-                )}
               </div>
               {detectedFrequency !== undefined && detectedFrequency !== null && (
                 <span className="text-xs text-gray-400 mt-0.5">

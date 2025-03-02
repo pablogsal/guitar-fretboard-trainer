@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+// src/components/GuitarFretboardTrainer.tsx - Fixed string selection
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Header from './Header';
 import CountdownTimer from './CountdownTimer';
 import ChallengeDisplay from './ChallengeDisplay';
@@ -9,7 +10,7 @@ import WelcomeScreen from './WelcomeScreen';
 import StringSelector from './StringSelector';
 import WaveformVisualizer from './WaveformVisualizer';
 import NoteDetector from './NoteDetector';
-import usePitchDetection from '../hooks/usePitchDetection';
+import { usePitchDetection } from '../hooks/pitch';
 import useTimer from '../hooks/useTimer';
 import useAudioDevices from '../hooks/useAudioDevices';
 import { generateRandomChallenge, getStringLabel } from '../utils/noteUtils';
@@ -36,7 +37,10 @@ const GuitarFretboardTrainer: React.FC = () => {
   const [isChallengeFailed, setIsChallengeFailed] = useState<boolean>(false);
   const [sensitivity, setSensitivity] = useState<number>(50); // Default medium sensitivity
   const [showNoteDetector, setShowNoteDetector] = useState<boolean>(false);
-  const [wasPausedBeforeDetector, setWasPausedBeforeDetector] = useState<boolean>(false);
+  
+  // Challenge start time reference for accurate timing
+  const challengeStartTimeRef = useRef<number | null>(null);
+  const currentChallengeRef = useRef<{ string: number; note: string } | null>(null);
   
   // Get audio devices with the hook
   const { 
@@ -50,7 +54,13 @@ const GuitarFretboardTrainer: React.FC = () => {
 
   // Custom hooks
   const { countdown, countdownActive, elapsedTime, startTime, startCountdown, resetTimer, pauseTimer, resumeTimer } = 
-    useTimer({ onComplete: () => setIsListening(true) });
+    useTimer({ 
+      onComplete: () => {
+        // Start listening and record the actual challenge start time
+        setIsListening(true);
+        challengeStartTimeRef.current = Date.now();
+      } 
+    });
 
   // Handle note detection success
   const handleNoteDetected = useCallback((detectedNote: PlayedNote) => {
@@ -116,15 +126,16 @@ const GuitarFretboardTrainer: React.FC = () => {
     updateSensitivity
   } = usePitchDetection({
     isListening: isListening || showNoteDetector, // Listen in both game and detector modes
-    isPaused: isPaused || (showNoteDetector && !wasPausedBeforeDetector), // Force pause during detector if not already paused
-    isMuted: isMuted || showNoteDetector, // Mute sounds during detector mode
+    isPaused, // Only pass the regular isPaused state
+    isMuted, // No longer mute sounds in detector mode
     currentNote,
     currentString,
     sensitivity,
     onNoteDetected: handleNoteDetected,
     onIncorrectNote: handleIncorrectNote,
     deviceId: selectedDeviceId,
-    extendedRange: true // Allow detection of higher frequencies
+    extendedRange: true, // Allow detection of higher frequencies
+    detectorMode: showNoteDetector // Explicitly tell the hook when we're in detector mode
   });
 
   // Update sensitivity when slider changes
@@ -134,10 +145,12 @@ const GuitarFretboardTrainer: React.FC = () => {
     }
   }, [sensitivity, updateSensitivity]);
 
+  // Handle individual string selection
   const handleStringSelect = useCallback((stringNumber: number) => {
     const challenge = generateRandomChallenge(stringNumber);
     setCurrentString(challenge.string);
     setCurrentNote(challenge.note);
+    currentChallengeRef.current = challenge;
     resetTimer();
     startCountdown(3);
   }, [resetTimer, startCountdown]);
@@ -153,24 +166,44 @@ const GuitarFretboardTrainer: React.FC = () => {
     setErrorCount(0);  // Reset error count for new challenge
     setIsChallengeFailed(false); // Reset failure state
     
-    // Only select from the strings the user has chosen
+    // Reset challenge start time
+    challengeStartTimeRef.current = null;
+    
+    // Ensure we have at least one string selected
     if (selectedStrings.length === 0) {
-      // Fallback if somehow no strings are selected
+      console.warn("No strings selected, defaulting to all strings");
       setSelectedStrings([1, 2, 3, 4, 5, 6]);
+      return;
     }
     
-    // Get a random challenge using only the selected strings
-    const challenge = generateRandomChallenge(selectedStrings);
+    // Log the currently selected strings
+    console.log("Selected strings for challenge:", selectedStrings);
     
-    // Update state with the new challenge
-    setCurrentString(challenge.string);
-    setCurrentNote(challenge.note);
-    
-    // Console log for debugging
-    console.log(`New challenge: String ${challenge.string} (${getStringLabel(challenge.string)}), Note ${challenge.note}`);
-    
-    resetTimer();
-    startCountdown(3);
+    try {
+      // Get a random challenge using only the selected strings
+      const challenge = generateRandomChallenge(selectedStrings);
+      
+      // Update state with the new challenge
+      setCurrentString(challenge.string);
+      setCurrentNote(challenge.note);
+      currentChallengeRef.current = challenge;
+      
+      // Console log for debugging
+      console.log(`New challenge: String ${challenge.string} (${getStringLabel(challenge.string)}), Note ${challenge.note}`);
+      
+      resetTimer();
+      startCountdown(3);
+    } catch (error) {
+      console.error("Error generating challenge:", error);
+      // Fallback to using all strings if something went wrong
+      setSelectedStrings([1, 2, 3, 4, 5, 6]);
+      const fallbackChallenge = generateRandomChallenge([1, 2, 3, 4, 5, 6]);
+      setCurrentString(fallbackChallenge.string);
+      setCurrentNote(fallbackChallenge.note);
+      currentChallengeRef.current = fallbackChallenge;
+      resetTimer();
+      startCountdown(3);
+    }
   }, [isPaused, showNoteDetector, resetTimer, startCountdown, selectedStrings]);
 
   const handleRestartChallenge = useCallback(() => {
@@ -184,18 +217,31 @@ const GuitarFretboardTrainer: React.FC = () => {
     
     setIsListening(false);
     
-    // Calculate time taken ONLY for this challenge (using elapsedTime)
-    const timeTaken = elapsedTime;
+    // Calculate time taken based on when the challenge actually started
+    let timeTaken = 0;
+    if (challengeStartTimeRef.current) {
+      timeTaken = Date.now() - challengeStartTimeRef.current;
+    } else {
+      // Fallback to timer's elapsed time if challenge start time wasn't recorded
+      timeTaken = elapsedTime;
+    }
+    
+    // Ensure current challenge info is available
+    if (!currentChallengeRef.current) {
+      console.error("No current challenge information available");
+      return;
+    }
     
     // Create a proper string identifier that includes both the number and note
-    const stringIdentifier = getStringLabel(currentString);
+    const currentStringNumber = currentChallengeRef.current.string;
+    const stringIdentifier = getStringLabel(currentStringNumber);
     
     // Add to progress with the current string properly recorded
     const progressEntry: ProgressEntry = {
       date: new Date().toISOString(),
       string: stringIdentifier, // Store the full string label like "1 (E)"
-      stringNumber: currentString, // Also store just the number for filtering
-      note: currentNote,
+      stringNumber: currentStringNumber, // Also store just the number for filtering
+      note: currentChallengeRef.current.note,
       timeTaken,
       correctNotesCount: correctNotes.length,
       errors: errorCount,
@@ -206,12 +252,12 @@ const GuitarFretboardTrainer: React.FC = () => {
     
     setProgress(prev => [...prev, progressEntry]);
     
-    // Play sound based on success/failure if not in detector mode and not muted
-    if (!showNoteDetector && !isMuted) {
+    // Play sound based on success/failure if not muted
+    if (!isMuted) {
       playSound(success ? 'success' : 'error', isMuted);
     }
     
-    // Show completion feedback - using challenge elapsed time not total time
+    // Show completion feedback - using challenge elapsed time
     if (success) {
       setFeedbackMessage(`Challenge completed in ${(timeTaken / 1000).toFixed(2)} seconds!`);
       setAnimation('complete');
@@ -221,13 +267,16 @@ const GuitarFretboardTrainer: React.FC = () => {
     }
     setShowFeedback(true);
     
+    // Reset challenge start time
+    challengeStartTimeRef.current = null;
+    
     // Start next challenge after a delay if not in detector mode
     if (!showNoteDetector) {
       setTimeout(() => {
         startNewChallenge();
       }, 2000);
     }
-  }, [elapsedTime, currentString, currentNote, correctNotes.length, errorCount, isMuted, showNoteDetector, startNewChallenge]);
+  }, [elapsedTime, correctNotes.length, errorCount, isMuted, showNoteDetector, startNewChallenge]);
 
  // Toggle pause state
   const togglePause = useCallback(() => {
@@ -261,28 +310,20 @@ const GuitarFretboardTrainer: React.FC = () => {
 
   // Toggle note detector mode
   const toggleNoteDetector = useCallback(() => {
-    setShowNoteDetector(prev => {
-      if (!prev) {
-        // Entering detector mode
-        setWasPausedBeforeDetector(isPaused);
-        
-        // Force pause the game
-        if (!isPaused) {
-          pauseTimer();
-        }
-        
-        // Hide any feedback that might be showing
-        setShowFeedback(false);
-        return true;
-      } else {
-        // Exiting detector mode - restore previous pause state
-        if (!wasPausedBeforeDetector) {
-          resumeTimer();
-        }
-        return false;
+    setShowNoteDetector(prev => !prev);
+    
+    // If turning detector mode on, pause the game
+    if (!showNoteDetector) {
+      if (!isPaused) {
+        pauseTimer();
       }
-    });
-  }, [isPaused, pauseTimer, resumeTimer, wasPausedBeforeDetector]);
+    } else {
+      // If turning detector mode off, resume timer if it was playing before
+      if (!isPaused) {
+        resumeTimer();
+      }
+    }
+  }, [isPaused, pauseTimer, resumeTimer, showNoteDetector]);
 
   // Export progress data
   const handleExportCSV = useCallback(() => {
@@ -317,7 +358,14 @@ const GuitarFretboardTrainer: React.FC = () => {
 
   // Handle strings selection change
   const handleStringSelectionChange = useCallback((newSelectedStrings: number[]) => {
-    console.log("String selection changed:", newSelectedStrings);
+    console.log("String selection changed to:", newSelectedStrings);
+    
+    // Validate to make sure we always have at least one string
+    if (newSelectedStrings.length === 0) {
+      console.warn("Cannot have zero strings selected");
+      return;
+    }
+    
     setSelectedStrings(newSelectedStrings);
   }, []);
 
@@ -362,9 +410,12 @@ const GuitarFretboardTrainer: React.FC = () => {
             targetNote={currentNote}
             cents={currentCents}
           />
-          
+
           {countdownActive ? (
-            <CountdownTimer countdown={countdown} />
+            <CountdownTimer 
+              countdown={countdown} 
+              currentString={currentString}
+            />
           ) : (
             <ChallengeDisplay 
               currentString={currentString}
@@ -399,7 +450,7 @@ const GuitarFretboardTrainer: React.FC = () => {
           detectedNote={currentDetectedNote}
           detectedFrequency={currentDetectedFrequency}
           cents={currentCents}
-          isListening={true}
+          isListening={true} // Always set to true in detector mode
           onExit={toggleNoteDetector}
           sensitivity={sensitivity}
           onSensitivityChange={handleSensitivityChange}

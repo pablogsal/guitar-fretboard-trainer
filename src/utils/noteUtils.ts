@@ -1,3 +1,4 @@
+// src/utils/noteUtils.ts
 // Constants for guitar strings (by number) and notes
 
 // Note strings for conversion
@@ -34,12 +35,23 @@ export const OPEN_STRING_FREQUENCIES = {
 
 /**
  * Generate a random string and note challenge
+ * @param selectedStrings Array of string numbers or single string number
  */
-export const generateRandomChallenge = (selectedStrings: number[]) => {
-  // Use provided strings or default to all strings
-  const availableStrings = selectedStrings.length > 0 
-    ? selectedStrings 
-    : GUITAR_STRINGS;
+export const generateRandomChallenge = (selectedStrings: number[] | number) => {
+  // Handle either array or single number input
+  let availableStrings: number[];
+  
+  if (Array.isArray(selectedStrings)) {
+    // If array is empty, default to all strings
+    availableStrings = selectedStrings.length > 0 
+      ? [...selectedStrings] // Create a copy to avoid mutation
+      : [...GUITAR_STRINGS];
+  } else {
+    // If a single string number was provided
+    availableStrings = [selectedStrings];
+  }
+  
+  console.log("Generating challenge from available strings:", availableStrings);
   
   // Pick a random string from the available ones
   const stringNumber = availableStrings[Math.floor(Math.random() * availableStrings.length)];
@@ -58,11 +70,14 @@ export const generateRandomChallenge = (selectedStrings: number[]) => {
   // Choose a random note from available ones
   const note = availableNotes[Math.floor(Math.random() * availableNotes.length)];
   
+  console.log(`Selected string ${stringNumber} (${getStringLabel(stringNumber)}), note ${note}`);
+  
   return { 
     string: stringNumber, 
     note
   };
 };
+
 /**
  * Get string label (with both number and note name)
  */

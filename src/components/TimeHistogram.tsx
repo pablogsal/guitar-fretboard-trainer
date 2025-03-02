@@ -1,3 +1,4 @@
+// src/components/TimeHistogram.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { ProgressEntry } from '../types';
 import { STRING_COLORS, getStringLabel, GUITAR_STRINGS } from '../utils/noteUtils';
@@ -20,9 +21,9 @@ const TimeHistogram: React.FC<TimeHistogramProps> = ({ progress }) => {
       return [];
     }
     
-    console.log("Filtering progress data, filter:", filter);
-    console.log("Progress entries:", progress);
+    console.log("Filtering progress data:", progress);
     
+    // Apply string filter if needed
     if (filter === 'all') {
       return progress;
     }
@@ -55,8 +56,18 @@ const TimeHistogram: React.FC<TimeHistogramProps> = ({ progress }) => {
       }));
     }
     
-    // Get max time from filtered data
-    const dataMaxTime = Math.max(...filteredData.map(entry => entry.timeTaken || 0));
+    // Create a default max time if all entries have time 0
+    let dataMaxTime = 5000; // Default to 5 seconds
+    
+    // Try to get max time from non-zero entries
+    const nonZeroTimes = filteredData
+      .map(entry => entry.timeTaken)
+      .filter(time => time > 0);
+    
+    if (nonZeroTimes.length > 0) {
+      dataMaxTime = Math.max(...nonZeroTimes);
+    }
+    
     const newMaxTime = Math.max(Math.ceil(dataMaxTime * 1.1), 5000); // Minimum 5 seconds
     
     if (newMaxTime > maxTime) {
@@ -74,10 +85,10 @@ const TimeHistogram: React.FC<TimeHistogramProps> = ({ progress }) => {
     
     // Count entries in each bracket
     filteredData.forEach(entry => {
-      if (entry.timeTaken !== undefined) {
-        const bracketIndex = Math.min(Math.floor(entry.timeTaken / bracketSize), 9);
-        brackets[bracketIndex].count++;
-      }
+      // Place time=0 entries in the first bracket
+      const time = Math.max(entry.timeTaken, 1); // Ensure at least 1ms
+      const bracketIndex = Math.min(Math.floor(time / bracketSize), 9);
+      brackets[bracketIndex].count++;
     });
     
     return brackets;
@@ -88,15 +99,28 @@ const TimeHistogram: React.FC<TimeHistogramProps> = ({ progress }) => {
     return Math.max(...timeBrackets.map(bracket => bracket.count), 1);
   }, [timeBrackets]);
   
+  // Calculate statistics, handling zero values appropriately
+  const stats = useMemo(() => {
+    if (filteredData.length === 0) {
+      return { average: 0, fastest: 0 };
+    }
+    
+    // Get all times, defaulting to 0 if undefined
+    const times = filteredData.map(entry => entry.timeTaken || 0);
+    
+    // For average time, include all times
+    const average = times.reduce((sum, time) => sum + time, 0) / times.length;
+    
+    // For fastest time, if all are 0, return 0
+    const fastest = times.every(t => t === 0) ? 0 : Math.min(...times.filter(t => t > 0) || [0]);
+    
+    return { average, fastest };
+  }, [filteredData]);
+  
   // Handle filter change
   const handleFilterChange = (newFilter: number | 'all') => {
-    console.log("Setting filter to:", newFilter);
     setFilter(newFilter);
   };
-  
-  useEffect(() => {
-    console.log("TimeHistogram updated with progress:", progress);
-  }, [progress]);
   
   return (
     <div className="bg-gray-800 rounded-xl p-6 shadow-lg mt-8">
@@ -142,7 +166,8 @@ const TimeHistogram: React.FC<TimeHistogramProps> = ({ progress }) => {
       {filteredData.length === 0 ? (
         <div className="bg-gray-700/30 rounded-lg p-8 text-center my-4">
           <p className="text-gray-400">
-            No data available {filter !== 'all' ? `for ${getStringLabel(filter)} string` : ''}. Complete some challenges to see statistics!
+            No data available {filter !== 'all' ? `for ${getStringLabel(filter)} string` : ''}.
+            Complete some challenges to see statistics!
           </p>
         </div>
       ) : (
@@ -191,17 +216,13 @@ const TimeHistogram: React.FC<TimeHistogramProps> = ({ progress }) => {
             <div className="bg-gray-700/50 rounded-lg p-3">
               <div className="text-sm text-gray-400">Average Time</div>
               <div className="text-xl font-mono mt-1">
-                {filteredData.length > 0 
-                  ? (_.meanBy(filteredData, 'timeTaken') / 1000).toFixed(2) 
-                  : '0.00'}s
+                {(stats.average / 1000).toFixed(2)}s
               </div>
             </div>
             <div className="bg-gray-700/50 rounded-lg p-3">
               <div className="text-sm text-gray-400">Fastest Time</div>
               <div className="text-xl font-mono mt-1">
-                {filteredData.length > 0 
-                  ? ((_.minBy(filteredData, 'timeTaken')?.timeTaken || 0) / 1000).toFixed(2)
-                  : '0.00'}s
+                {(stats.fastest / 1000).toFixed(2)}s
               </div>
             </div>
           </div>
