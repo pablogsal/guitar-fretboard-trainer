@@ -47,40 +47,6 @@ export function getNoteAndOctave(midiNote: number): { note: string, octave: numb
 }
 
 /**
- * Determine if a note is in low or high octave for a guitar based on frequency and string.
- * @param frequency - Frequency of the note in Hz
- * @returns 'low' or 'high' octave category
- */
-export function getOctaveCategory(frequency: number): 'low' | 'high' {
-    // Define the fundamental frequencies of the 6 guitar strings (standard tuning)
-    const stringFrequencies = Object.values(OPEN_STRING_FREQUENCIES);
-
-    // Find the closest string to the input frequency
-    let closestStringIndex = 0;
-    let minDifference = Math.abs(frequency - stringFrequencies[0]);
-
-    for (let i = 1; i < stringFrequencies.length; i++) {
-        const difference = Math.abs(frequency - stringFrequencies[i]);
-        if (difference < minDifference) {
-            minDifference = difference;
-            closestStringIndex = i;
-        }
-    }
-
-    // Determine if the note is in the low or high octave for the closest string
-    const stringFundamentalFrequency = stringFrequencies[closestStringIndex];
-    const octaveThreshold = stringFundamentalFrequency * 2; // One octave above the fundamental
-    console.log(closestStringIndex);
-    console.log(frequency, stringFundamentalFrequency, octaveThreshold);
-
-    if (frequency < octaveThreshold) {
-        return 'low'; // Note is in the low octave for this string
-    } else {
-        return 'high'; // Note is in the high octave for this string
-    }
-}
-
-/**
  * Filter out false positives for guitar notes
  * @param frequency - Detected frequency
  * @returns true if the frequency is likely a valid guitar note

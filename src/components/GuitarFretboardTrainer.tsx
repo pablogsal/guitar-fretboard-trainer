@@ -1,4 +1,3 @@
-// src/components/GuitarFretboardTrainer.tsx (Remove calibration references)
 import React, { useState, useEffect, useCallback } from 'react';
 import Header from './Header';
 import CountdownTimer from './CountdownTimer';
@@ -6,7 +5,7 @@ import ChallengeDisplay from './ChallengeDisplay';
 import FeedbackDisplay from './FeedbackDisplay';
 import ProgressStats from './ProgressStats';
 import WelcomeScreen from './WelcomeScreen';
-import MicrophoneSelector from './MicrophoneSelector';
+import StringSelector from './StringSelector';
 import WaveformVisualizer from './WaveformVisualizer';
 import usePitchDetection from '../hooks/usePitchDetection';
 import useTimer from '../hooks/useTimer';
@@ -29,6 +28,8 @@ const GuitarFretboardTrainer: React.FC = () => {
   const [feedbackMessage, setFeedbackMessage] = useState<string>('');
   const [showFeedback, setShowFeedback] = useState<boolean>(false);
   const [animation, setAnimation] = useState<string>('');
+  const [selectedStrings, setSelectedStrings] = useState<number[]>([1, 2, 3, 4, 5, 6]);
+
   
   // Get audio devices with the hook
   const { 
@@ -43,62 +44,17 @@ const GuitarFretboardTrainer: React.FC = () => {
   // Custom hooks
   const { countdown, countdownActive, elapsedTime, startTime, startCountdown, resetTimer, pauseTimer, resumeTimer } = 
     useTimer({ onComplete: () => setIsListening(true) });
-  
-  const handleNoteDetected = useCallback((detectedNote: PlayedNote) => {
-    // Check if this octave has already been played correctly
-    if (!correctNotes.includes(detectedNote.octave)) {
-      const newCorrectNotes = [...correctNotes, detectedNote.octave];
-      setCorrectNotes(newCorrectNotes);
-      
-      // Show feedback
-      setFeedbackMessage(`Correct! ${detectedNote.note} on ${detectedNote.octave === 'low' ? 'lower' : 'higher'} octave`);
-      setShowFeedback(true);
-      setAnimation('success');
-      
-      // If both octaves are correct, complete the challenge
-      if (newCorrectNotes.length >= 2) {
-        completeChallenge();
-      }
-    }
-    
-    // Add to played notes
-    setPlayedNotes(prev => [...prev, detectedNote]);
-  }, [correctNotes]);
 
-  const handleIncorrectNote = useCallback((noteData: string) => {
-    // Play error sound
-    if (!isMuted) {
-      playSound('error', isMuted);
-    }
-    
-    setFeedbackMessage(`Incorrect! You played ${noteData}, expected ${currentNote}`);
-    setShowFeedback(true);
-    setAnimation('error');
-  }, [currentNote, isMuted]);
-  
-  // Pass the selected deviceId to usePitchDetection
-  const { 
-    isInitialized, 
-    error, 
-    initAudio, 
-    audioData, 
-    isCorrectNote, 
-    detectedNotes,
-    currentDetectedNote,
-    currentDetectedFrequency,
-    currentCents
-  } = usePitchDetection({
-    isListening,
-    isPaused,
-    isMuted,
-    currentNote,
-    currentString,
-    onNoteDetected: handleNoteDetected,
-    deviceId: selectedDeviceId
-  });
+  const handleStringSelect = useCallback((stringNumber: number) => {
+    const challenge = generateRandomChallenge(stringNumber);
+    setCurrentString(challenge.string);
+    setCurrentNote(challenge.note);
+    resetTimer();
+    startCountdown(3);
+  }, [resetTimer, startCountdown]);
 
   // Start a new challenge
-  const startNewChallenge = useCallback(() => {
+    const startNewChallenge = useCallback(() => {
     if (isPaused) return;
     
     setPlayedNotes([]);
@@ -106,13 +62,17 @@ const GuitarFretboardTrainer: React.FC = () => {
     setFeedbackMessage('');
     setShowFeedback(false);
     
-    const challenge = generateRandomChallenge();
+    const challenge = generateRandomChallenge(selectedStrings);
     setCurrentString(challenge.string);
     setCurrentNote(challenge.note);
     
     resetTimer();
     startCountdown(3);
-  }, [isPaused, resetTimer, startCountdown]);
+  }, [isPaused, resetTimer, startCountdown, selectedStrings]);
+
+  const handleRestartChallenge = useCallback(() => {
+    startNewChallenge();
+  }, [startNewChallenge]);
 
   // Complete the current challenge
   const completeChallenge = useCallback(() => {
@@ -142,8 +102,44 @@ const GuitarFretboardTrainer: React.FC = () => {
       startNewChallenge();
     }, 2000);
   }, [startTime, currentString, currentNote, correctNotes.length, startNewChallenge]);
+  
+  const handleNoteDetected = useCallback((detectedNote: PlayedNote) => {
+    if (detectedNote.octave === 'first') {
+      setCorrectNotes(['first']);
+      setFeedbackMessage(`Correct! ${detectedNote.note} detected. Now play the next octave.`);
+    } else if (detectedNote.octave === 'next') {
+      setCorrectNotes(['first', 'next']);
+      setFeedbackMessage(`Correct! ${detectedNote.note} in the next octave detected.`);
+      completeChallenge();
+    }
 
-  // Toggle pause state
+    setShowFeedback(true);
+    setAnimation('success');
+    setPlayedNotes(prev => [...prev, detectedNote]);
+  }, [completeChallenge]);
+
+  // Pass the selected deviceId to usePitchDetection
+  const { 
+    isInitialized, 
+    error, 
+    initAudio, 
+    audioData, 
+    isCorrectNote, 
+    detectedNotes,
+    currentDetectedNote,
+    currentDetectedFrequency,
+    currentCents
+  } = usePitchDetection({
+    isListening,
+    isPaused,
+    isMuted,
+    currentNote,
+    currentString,
+    onNoteDetected: handleNoteDetected,
+    deviceId: selectedDeviceId
+  });
+
+ // Toggle pause state
   const togglePause = useCallback(() => {
     setIsPaused(prev => {
       const newState = !prev;
@@ -213,23 +209,23 @@ const GuitarFretboardTrainer: React.FC = () => {
         onToggleMute={toggleMute}
         onTogglePause={togglePause}
         onExportCSV={handleExportCSV}
+        onRestartChallenge={handleRestartChallenge}
+        audioDevices={audioDevices}
+        selectedDeviceId={selectedDeviceId}
+        onDeviceSelect={handleDeviceSelect}
+        isLoadingDevices={isLoadingDevices}
+        devicesError={devicesError}
+        onRefreshDevices={refreshDevices}
       />
 
       {!isStarted ? (
         <WelcomeScreen onStart={handleStart} error={error} />
       ) : (
         <div className={`w-full max-w-4xl ${animation ? `animate-${animation}` : ''}`}>
-          <div className="mb-6">
-            <MicrophoneSelector
-              audioDevices={audioDevices}
-              selectedDeviceId={selectedDeviceId}
-              onDeviceSelect={handleDeviceSelect}
-              isLoading={isLoadingDevices}
-              error={devicesError}
-              onRefresh={refreshDevices}
-            />
-          </div>
-          
+          <StringSelector
+            selectedStrings={selectedStrings}
+            onChange={setSelectedStrings}
+          />
           <WaveformVisualizer 
             audioData={audioData}
             isListening={isListening}
@@ -247,6 +243,7 @@ const GuitarFretboardTrainer: React.FC = () => {
               currentString={currentString}
               currentNote={currentNote}
               correctNotes={correctNotes}
+              onStringSelect={handleStringSelect}
             />
           )}
           

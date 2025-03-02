@@ -14,9 +14,8 @@ export interface NoteData {
 
 export interface PlayedNote {
   note: string;
-  octave: 'low' | 'high';
+  octave: 'first' | 'next';
 }
-
 export interface Challenge {
   string: number;
   note: string;

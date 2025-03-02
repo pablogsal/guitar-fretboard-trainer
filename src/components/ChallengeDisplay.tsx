@@ -1,4 +1,3 @@
-// src/components/ChallengeDisplay.tsx
 import React from 'react';
 import { STRING_COLORS, getStringLabel } from '../utils/noteUtils';
 
@@ -29,16 +28,16 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
       
       <div className="flex items-center justify-center">
         <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center mr-2">
-          {correctNotes.includes('low') && <div className="w-4 h-4 rounded-full bg-green-500"></div>}
+          {correctNotes.includes('first') && <div className="w-4 h-4 rounded-full bg-green-500"></div>}
         </div>
-        <div className="text-gray-400">Low Octave</div>
+        <div className="text-gray-400">First Note</div>
         
         <div className="mx-4">•</div>
         
         <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center mr-2">
-          {correctNotes.includes('high') && <div className="w-4 h-4 rounded-full bg-green-500"></div>}
+          {correctNotes.includes('next') && <div className="w-4 h-4 rounded-full bg-green-500"></div>}
         </div>
-        <div className="text-gray-400">High Octave</div>
+        <div className="text-gray-400">Next Octave</div>
       </div>
     </div>
   );

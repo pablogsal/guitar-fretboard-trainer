@@ -35,9 +35,14 @@ export const OPEN_STRING_FREQUENCIES = {
 /**
  * Generate a random string and note challenge
  */
-export const generateRandomChallenge = () => {
-  // Pick a random string (1-6)
-  const stringNumber = GUITAR_STRINGS[Math.floor(Math.random() * GUITAR_STRINGS.length)];
+export const generateRandomChallenge = (selectedStrings: number[]) => {
+  // Use provided strings or default to all strings
+  const availableStrings = selectedStrings.length > 0 
+    ? selectedStrings 
+    : GUITAR_STRINGS;
+  
+  // Pick a random string from the available ones
+  const stringNumber = availableStrings[Math.floor(Math.random() * availableStrings.length)];
   
   // Get available notes for this string (first 5 frets only to keep it simple)
   const openNote = STRING_NOTES[stringNumber];
@@ -58,7 +63,6 @@ export const generateRandomChallenge = () => {
     note
   };
 };
-
 /**
  * Get string label (with both number and note name)
  */

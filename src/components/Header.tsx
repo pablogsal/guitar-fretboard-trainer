@@ -1,5 +1,6 @@
 import React from 'react';
 import { Music, Download, Volume2, VolumeX, Play, Pause } from 'lucide-react';
+import SettingsMenu from './SettingsMenu';
 
 interface HeaderProps {
   isMuted: boolean;
@@ -7,6 +8,13 @@ interface HeaderProps {
   onToggleMute: () => void;
   onTogglePause: () => void;
   onExportCSV: () => void;
+  onRestartChallenge: () => void;
+  audioDevices: Array<{ deviceId: string; label: string }>;
+  selectedDeviceId: string;
+  onDeviceSelect: (deviceId: string) => void;
+  isLoadingDevices: boolean;
+  devicesError: string | null;
+  onRefreshDevices: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -14,7 +22,14 @@ const Header: React.FC<HeaderProps> = ({
   isPaused,
   onToggleMute,
   onTogglePause,
-  onExportCSV
+  onExportCSV,
+  onRestartChallenge,
+  audioDevices,
+  selectedDeviceId,
+  onDeviceSelect,
+  isLoadingDevices,
+  devicesError,
+  onRefreshDevices
 }) => {
   return (
     <header className="w-full max-w-4xl flex justify-between items-center mb-8">
@@ -46,6 +61,16 @@ const Header: React.FC<HeaderProps> = ({
         >
           <Download size={20} />
         </button>
+         <SettingsMenu
+          audioDevices={audioDevices}
+          selectedDeviceId={selectedDeviceId}
+          onDeviceSelect={onDeviceSelect}
+          isLoading={isLoadingDevices}
+          error={devicesError}
+          onRefresh={onRefreshDevices}
+          isMuted={isMuted}
+          onToggleMute={onToggleMute}
+        />
       </div>
     </header>
   );

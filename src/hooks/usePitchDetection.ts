@@ -6,7 +6,6 @@ import {
   noteFromPitch, 
   centsOffFromPitch, 
   getNoteAndOctave, 
-  getOctaveCategory,
   isValidGuitarFrequency
 } from '../libs/Helpers';
 
@@ -29,7 +28,6 @@ export const usePitchDetection = ({
   onNoteDetected,
   deviceId = ''
 }: UsePitchDetectionProps) => {
-  // State variables
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [audioData, setAudioData] = useState<Uint8Array | null>(null);
@@ -38,28 +36,30 @@ export const usePitchDetection = ({
   const [currentDetectedNote, setCurrentDetectedNote] = useState<string | null>(null);
   const [currentDetectedFrequency, setCurrentDetectedFrequency] = useState<number | null>(null);
   const [currentCents, setCurrentCents] = useState<number>(0);
-  
-  // References to keep track of state without triggering re-renders
-  const detectedOctaveCategories = useRef<Set<string>>(new Set());
+
+  // Track the first detected note and its octave
+  const firstDetectedNoteRef = useRef<{ note: string; octave: number } | null>(null);
+
+  // References for audio processing
   const microphoneRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const updateIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isAnalyzing = useRef<boolean>(false);
-  
+
   // Audio context and analyzer from our singleton
   const audioContext = AudioContext.getAudioContext();
   const analyserNode = AudioContext.getAnalyser();
-  
+
   // Create buffer for pitch detection
   const bufferLength = 2048;
   const bufferRef = useRef<Float32Array>(new Float32Array(bufferLength));
-  
+
   // Reset detection state
   const resetDetection = useCallback(() => {
-    detectedOctaveCategories.current.clear();
+    firstDetectedNoteRef.current = null;
   }, []);
-  
+
   // Initialize audio context and analyzer
   const initAudio = useCallback(async () => {
     try {
@@ -70,7 +70,7 @@ export const usePitchDetection = ({
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
-      
+
       // Use specific device if provided, otherwise use default
       const constraints: MediaStreamConstraints = {
         audio: deviceId 
@@ -88,19 +88,19 @@ export const usePitchDetection = ({
               latency: 0
             }
       };
-      
+
       // Get microphone access
       streamRef.current = await navigator.mediaDevices.getUserMedia(constraints);
-      
+
       // Resume the audio context if suspended
       if (audioContext.state === 'suspended') {
         await audioContext.resume();
       }
-      
+
       // Connect microphone to analyzer
       microphoneRef.current = audioContext.createMediaStreamSource(streamRef.current);
       microphoneRef.current.connect(analyserNode);
-      
+
       setIsInitialized(true);
       resetDetection();
       setError(null);
@@ -112,7 +112,7 @@ export const usePitchDetection = ({
       return false;
     }
   }, [analyserNode, audioContext, deviceId, resetDetection]);
-  
+
   // Get audio waveform data for visualization
   const updateAudioData = useCallback(() => {
     if (!isListening || isPaused) {
@@ -120,89 +120,68 @@ export const usePitchDetection = ({
       setAudioData(new Uint8Array(128).fill(128));
       return;
     }
-    
+
     // Get the waveform data for visualization
     const dataArray = new Uint8Array(analyserNode.frequencyBinCount);
     analyserNode.getByteTimeDomainData(dataArray);
     setAudioData(dataArray);
-    
+
     // Continue updating until stopped
     animationFrameRef.current = requestAnimationFrame(updateAudioData);
   }, [analyserNode, isListening, isPaused]);
-  
+
   // Analyze the pitch using the autocorrelation algorithm
   const updatePitch = useCallback(() => {
     if (!isListening || isPaused || isAnalyzing.current) return;
-    
+
     isAnalyzing.current = true;
-    
+
     try {
       // Get the audio data from the analyzer
       analyserNode.getFloatTimeDomainData(bufferRef.current);
-      
+
       // Use the autocorrelation algorithm to detect the pitch
       const frequency = autoCorrelate(bufferRef.current, audioContext.sampleRate);
-      
+
       // Only process if we have a valid frequency
       if (frequency > -1 && isValidGuitarFrequency(frequency)) {
-        // Update the detected frequency
         setCurrentDetectedFrequency(frequency);
-        
-        // Convert the frequency to a MIDI note number
         const midiNote = noteFromPitch(frequency);
-        
-        // Calculate how many cents off the note is (for tuning display)
         const cents = centsOffFromPitch(frequency, midiNote);
         setCurrentCents(cents);
-        
-        // Get the note name and octave
         const { note, octave } = getNoteAndOctave(midiNote);
         const fullNote = `${note}${octave}`;
-        
-        // Update the detected note
+
         setCurrentDetectedNote(fullNote);
 
-        const octaveCategory = getOctaveCategory(frequency);
-        console.log(`Detected ${note} in ${octaveCategory} octave (${fullNote}, ${frequency.toFixed(1)} Hz)`);
-        
         // If the detected note matches the current challenge note
         if (note === currentNote) {
-          // Only process if this octave hasn't been detected yet
-          if (!detectedOctaveCategories.current.has(octaveCategory)) {
-            console.log(`Detected ${note} in ${octaveCategory} octave (${fullNote}, ${frequency.toFixed(1)} Hz)`);
-            
-            // Mark this octave as detected
-            detectedOctaveCategories.current.add(octaveCategory);
-            
-            // Add to detected notes list
-            setDetectedNotes(prev => [...prev.slice(-9), fullNote]);
-            
-            // Notify about the detection
-            onNoteDetected({ 
-              note, 
-              octave: octaveCategory
-            });
-            
-            // Set the correct note flag for visualization
-            setIsCorrectNote(true);
-            setTimeout(() => {
-              setIsCorrectNote(false);
-            }, 1000);
+          // If no note has been detected yet, store the first detected note
+          if (!firstDetectedNoteRef.current) {
+            firstDetectedNoteRef.current = { note, octave };
+            onNoteDetected({ note, octave: 'first' });
+          } else {
+            // Check if the new note is the same as the first note but in the next octave
+            const { note: firstNote, octave: firstOctave } = firstDetectedNoteRef.current;
+            if (note === firstNote && octave === firstOctave + 1) {
+              onNoteDetected({ note, octave: 'next' });
+              resetDetection(); // Reset for the next challenge
+            }
           }
         }
       }
     } catch (err) {
       console.error("Error in pitch detection:", err);
     }
-    
+
     isAnalyzing.current = false;
-  }, [isListening, isPaused, currentNote, onNoteDetected]);
-  
+  }, [isListening, isPaused, currentNote, onNoteDetected, resetDetection]);
+
   // Start updating the audio data for visualization
   useEffect(() => {
     if (isInitialized && isListening && !isPaused) {
       updateAudioData();
-      
+
       return () => {
         if (animationFrameRef.current) {
           cancelAnimationFrame(animationFrameRef.current);
@@ -211,13 +190,12 @@ export const usePitchDetection = ({
       };
     }
   }, [isInitialized, isListening, isPaused, updateAudioData]);
-  
+
   // Start the pitch detection interval
   useEffect(() => {
     if (isInitialized && isListening && !isPaused) {
-      // Set up the interval for pitch detection (30ms for good performance)
       updateIntervalRef.current = setInterval(updatePitch, 30);
-      
+
       return () => {
         if (updateIntervalRef.current) {
           clearInterval(updateIntervalRef.current);
@@ -226,19 +204,19 @@ export const usePitchDetection = ({
       };
     }
   }, [isInitialized, isListening, isPaused, updatePitch]);
-  
+
   // Reset detection when the note changes
   useEffect(() => {
     resetDetection();
   }, [currentNote, currentString, resetDetection]);
-  
+
   // Reinitialize when deviceId changes
   useEffect(() => {
     if (deviceId) {
       initAudio();
     }
   }, [deviceId, initAudio]);
-  
+
   // Cleanup function
   useEffect(() => {
     return () => {
@@ -254,10 +232,9 @@ export const usePitchDetection = ({
       if (updateIntervalRef.current) {
         clearInterval(updateIntervalRef.current);
       }
-      // We don't close the AudioContext here as it's shared
     };
   }, []);
-  
+
   return {
     isInitialized,
     error,
