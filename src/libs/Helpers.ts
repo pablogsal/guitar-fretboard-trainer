@@ -48,11 +48,40 @@ export function getNoteAndOctave(midiNote: number): { note: string, octave: numb
 
 /**
  * Filter out false positives for guitar notes
+ * This is the original implementation with a standard range
  * @param frequency - Detected frequency
  * @returns true if the frequency is likely a valid guitar note
  */
 export function isValidGuitarFrequency(frequency: number): boolean {
-  // Guitar standard range is roughly 80Hz (low E) to 700Hz (high E 12th fret)
-  // Add some margin for alternate tunings
-  return frequency >= 75 && frequency <= 1000;
+  // Expanded guitar range to allow for high frets on the high E string
+  // Consider frequencies from 75Hz (low E) to 2000Hz (high notes on high E string)
+  return frequency >= 75 && frequency <= 2000;
+}
+
+/**
+ * Get frequency range for a specific string
+ * @param stringNumber - Guitar string number (1-6)
+ * @returns Range object with min and max frequencies
+ */
+export function getStringFrequencyRange(stringNumber: number): { min: number, max: number } {
+  // Basic open frequencies
+  const openFreq = OPEN_STRING_FREQUENCIES[stringNumber] || 0;
+  
+  // Calculate frequency ranges based on string
+  switch (stringNumber) {
+    case 1: // High E - allow very high frequencies
+      return { min: openFreq * 0.9, max: openFreq * 6 }; // Up to 24th fret and beyond
+    case 2: // B
+      return { min: openFreq * 0.9, max: openFreq * 5 };
+    case 3: // G
+      return { min: openFreq * 0.9, max: openFreq * 4 };
+    case 4: // D
+      return { min: openFreq * 0.9, max: openFreq * 3.5 };
+    case 5: // A
+      return { min: openFreq * 0.9, max: openFreq * 3 };
+    case 6: // Low E
+      return { min: openFreq * 0.9, max: openFreq * 3 };
+    default:
+      return { min: 75, max: 2000 };
+  }
 }

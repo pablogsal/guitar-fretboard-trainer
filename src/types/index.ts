@@ -1,9 +1,12 @@
 export interface ProgressEntry {
   date: string;
-  string: string;
+  string: string;       // String label like "1 (E)"
+  stringNumber: number; // Actual string number (1-6) for filtering
   note: string;
   timeTaken: number;
   correctNotesCount: number;
+  errors: number;
+  success: boolean;
 }
 
 export interface NoteData {

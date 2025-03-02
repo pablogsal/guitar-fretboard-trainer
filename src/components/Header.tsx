@@ -1,5 +1,5 @@
 import React from 'react';
-import { Music, Download, Volume2, VolumeX, Play, Pause } from 'lucide-react';
+import { Music, Download, Volume2, VolumeX, Play, Pause, RefreshCw, BarChart3 } from 'lucide-react';
 import SettingsMenu from './SettingsMenu';
 
 interface HeaderProps {
@@ -15,6 +15,10 @@ interface HeaderProps {
   isLoadingDevices: boolean;
   devicesError: string | null;
   onRefreshDevices: () => void;
+  sensitivity: number;
+  onSensitivityChange: (value: number) => void;
+  onToggleNoteDetector: () => void;
+  showNoteDetector?: boolean;
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -29,7 +33,11 @@ const Header: React.FC<HeaderProps> = ({
   onDeviceSelect,
   isLoadingDevices,
   devicesError,
-  onRefreshDevices
+  onRefreshDevices,
+  sensitivity,
+  onSensitivityChange,
+  onToggleNoteDetector,
+  showNoteDetector = false
 }) => {
   return (
     <header className="w-full max-w-4xl flex justify-between items-center mb-8">
@@ -44,24 +52,55 @@ const Header: React.FC<HeaderProps> = ({
           onClick={onToggleMute} 
           className="p-2 rounded-full bg-gray-700 hover:bg-gray-600 transition-colors"
           aria-label={isMuted ? "Unmute" : "Mute"}
+          title={isMuted ? "Unmute" : "Mute"}
         >
           {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
         </button>
+        
         <button 
           onClick={onTogglePause} 
           className="p-2 rounded-full bg-gray-700 hover:bg-gray-600 transition-colors"
           aria-label={isPaused ? "Resume" : "Pause"}
+          title={isPaused ? "Resume" : "Pause"}
+          disabled={showNoteDetector}
         >
           {isPaused ? <Play size={20} /> : <Pause size={20} />}
         </button>
+        
+        <button 
+          onClick={onRestartChallenge} 
+          className="p-2 rounded-full bg-gray-700 hover:bg-gray-600 transition-colors"
+          aria-label="Reset Challenge"
+          title="Reset Challenge"
+          disabled={showNoteDetector}
+        >
+          <RefreshCw size={20} />
+        </button>
+        
+        <button 
+          onClick={onToggleNoteDetector} 
+          className={`p-2 rounded-full transition-colors ${
+            showNoteDetector 
+              ? 'bg-blue-600 hover:bg-blue-700' 
+              : 'bg-gray-700 hover:bg-gray-600'
+          }`}
+          aria-label="Note Detector"
+          title="Note Detector Mode"
+        >
+          <BarChart3 size={20} />
+        </button>
+        
         <button 
           onClick={onExportCSV} 
           className="p-2 rounded-full bg-gray-700 hover:bg-gray-600 transition-colors"
           aria-label="Export Progress"
+          title="Export Progress"
+          disabled={showNoteDetector}
         >
           <Download size={20} />
         </button>
-         <SettingsMenu
+        
+        <SettingsMenu
           audioDevices={audioDevices}
           selectedDeviceId={selectedDeviceId}
           onDeviceSelect={onDeviceSelect}
@@ -70,6 +109,8 @@ const Header: React.FC<HeaderProps> = ({
           onRefresh={onRefreshDevices}
           isMuted={isMuted}
           onToggleMute={onToggleMute}
+          sensitivity={sensitivity}
+          onSensitivityChange={onSensitivityChange}
         />
       </div>
     </header>

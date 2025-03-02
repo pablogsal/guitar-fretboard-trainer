@@ -4,9 +4,11 @@ import CountdownTimer from './CountdownTimer';
 import ChallengeDisplay from './ChallengeDisplay';
 import FeedbackDisplay from './FeedbackDisplay';
 import ProgressStats from './ProgressStats';
+import TimeHistogram from './TimeHistogram';
 import WelcomeScreen from './WelcomeScreen';
 import StringSelector from './StringSelector';
 import WaveformVisualizer from './WaveformVisualizer';
+import NoteDetector from './NoteDetector';
 import usePitchDetection from '../hooks/usePitchDetection';
 import useTimer from '../hooks/useTimer';
 import useAudioDevices from '../hooks/useAudioDevices';
@@ -29,7 +31,12 @@ const GuitarFretboardTrainer: React.FC = () => {
   const [showFeedback, setShowFeedback] = useState<boolean>(false);
   const [animation, setAnimation] = useState<string>('');
   const [selectedStrings, setSelectedStrings] = useState<number[]>([1, 2, 3, 4, 5, 6]);
-
+  const [errorCount, setErrorCount] = useState<number>(0);
+  const [maxErrors, setMaxErrors] = useState<number>(3); // Maximum errors allowed before failing
+  const [isChallengeFailed, setIsChallengeFailed] = useState<boolean>(false);
+  const [sensitivity, setSensitivity] = useState<number>(50); // Default medium sensitivity
+  const [showNoteDetector, setShowNoteDetector] = useState<boolean>(false);
+  const [wasPausedBeforeDetector, setWasPausedBeforeDetector] = useState<boolean>(false);
   
   // Get audio devices with the hook
   const { 
@@ -45,6 +52,88 @@ const GuitarFretboardTrainer: React.FC = () => {
   const { countdown, countdownActive, elapsedTime, startTime, startCountdown, resetTimer, pauseTimer, resumeTimer } = 
     useTimer({ onComplete: () => setIsListening(true) });
 
+  // Handle note detection success
+  const handleNoteDetected = useCallback((detectedNote: PlayedNote) => {
+    // Don't process if in detector mode or challenge failed
+    if (showNoteDetector || isChallengeFailed) return;
+    
+    if (detectedNote.octave === 'first') {
+      setCorrectNotes(['first']);
+      setFeedbackMessage(`Correct! ${detectedNote.note} detected. Now play the next octave.`);
+      playSound('success', isMuted);
+    } else if (detectedNote.octave === 'next') {
+      setCorrectNotes(['first', 'next']);
+      setFeedbackMessage(`Correct! ${detectedNote.note} in the next octave detected.`);
+      playSound('success', isMuted);
+      completeChallenge(true);
+    }
+
+    setShowFeedback(true);
+    setAnimation('success');
+    setPlayedNotes(prev => [...prev, detectedNote]);
+  }, [showNoteDetector, isChallengeFailed, isMuted]);
+
+  // Handle incorrect note detection
+  const handleIncorrectNote = useCallback((note: string) => {
+    // Don't process if in detector mode or challenge failed
+    if (showNoteDetector || isChallengeFailed) return;
+    
+    setErrorCount(prev => {
+      const newErrorCount = prev + 1;
+      
+      // Play error sound
+      playSound('error', isMuted);
+      
+      // Show error feedback with clear display of both the detected and target notes
+      setFeedbackMessage(`Incorrect! ${note} detected instead of ${currentNote}.`);
+      setShowFeedback(true);
+      setAnimation('error');
+      
+      // If too many errors, fail the challenge
+      if (newErrorCount >= maxErrors) {
+        setIsChallengeFailed(true);
+        setChallengeFailed(); // Tell the pitch detection to stop checking
+        completeChallenge(false);
+      }
+      
+      return newErrorCount;
+    });
+  }, [showNoteDetector, isChallengeFailed, currentNote, isMuted, maxErrors]);
+
+  // Pass the selected deviceId to usePitchDetection
+  const { 
+    isInitialized, 
+    error, 
+    initAudio, 
+    audioData,
+    rawAudioData, 
+    isCorrectNote, 
+    detectedNotes,
+    currentDetectedNote,
+    currentDetectedFrequency,
+    currentCents,
+    setChallengeFailed,
+    updateSensitivity
+  } = usePitchDetection({
+    isListening: isListening || showNoteDetector, // Listen in both game and detector modes
+    isPaused: isPaused || (showNoteDetector && !wasPausedBeforeDetector), // Force pause during detector if not already paused
+    isMuted: isMuted || showNoteDetector, // Mute sounds during detector mode
+    currentNote,
+    currentString,
+    sensitivity,
+    onNoteDetected: handleNoteDetected,
+    onIncorrectNote: handleIncorrectNote,
+    deviceId: selectedDeviceId,
+    extendedRange: true // Allow detection of higher frequencies
+  });
+
+  // Update sensitivity when slider changes
+  useEffect(() => {
+    if (updateSensitivity) {
+      updateSensitivity(sensitivity);
+    }
+  }, [sensitivity, updateSensitivity]);
+
   const handleStringSelect = useCallback((stringNumber: number) => {
     const challenge = generateRandomChallenge(stringNumber);
     setCurrentString(challenge.string);
@@ -54,93 +143,96 @@ const GuitarFretboardTrainer: React.FC = () => {
   }, [resetTimer, startCountdown]);
 
   // Start a new challenge
-    const startNewChallenge = useCallback(() => {
-    if (isPaused) return;
+  const startNewChallenge = useCallback(() => {
+    if (isPaused || showNoteDetector) return;
     
     setPlayedNotes([]);
     setCorrectNotes([]);
     setFeedbackMessage('');
     setShowFeedback(false);
+    setErrorCount(0);  // Reset error count for new challenge
+    setIsChallengeFailed(false); // Reset failure state
     
+    // Only select from the strings the user has chosen
+    if (selectedStrings.length === 0) {
+      // Fallback if somehow no strings are selected
+      setSelectedStrings([1, 2, 3, 4, 5, 6]);
+    }
+    
+    // Get a random challenge using only the selected strings
     const challenge = generateRandomChallenge(selectedStrings);
+    
+    // Update state with the new challenge
     setCurrentString(challenge.string);
     setCurrentNote(challenge.note);
     
+    // Console log for debugging
+    console.log(`New challenge: String ${challenge.string} (${getStringLabel(challenge.string)}), Note ${challenge.note}`);
+    
     resetTimer();
     startCountdown(3);
-  }, [isPaused, resetTimer, startCountdown, selectedStrings]);
+  }, [isPaused, showNoteDetector, resetTimer, startCountdown, selectedStrings]);
 
   const handleRestartChallenge = useCallback(() => {
+    if (showNoteDetector) return; // Don't restart if in detector mode
     startNewChallenge();
-  }, [startNewChallenge]);
+  }, [showNoteDetector, startNewChallenge]);
 
   // Complete the current challenge
-  const completeChallenge = useCallback(() => {
+  const completeChallenge = useCallback((success: boolean = true) => {
+    if (showNoteDetector) return; // Don't complete challenges in detector mode
+    
     setIsListening(false);
     
-    // Calculate time taken
-    const timeTaken = startTime ? Date.now() - startTime : 0;
+    // Calculate time taken ONLY for this challenge (using elapsedTime)
+    const timeTaken = elapsedTime;
     
-    // Add to progress
+    // Create a proper string identifier that includes both the number and note
+    const stringIdentifier = getStringLabel(currentString);
+    
+    // Add to progress with the current string properly recorded
     const progressEntry: ProgressEntry = {
       date: new Date().toISOString(),
-      string: getStringLabel(currentString),
+      string: stringIdentifier, // Store the full string label like "1 (E)"
+      stringNumber: currentString, // Also store just the number for filtering
       note: currentNote,
       timeTaken,
-      correctNotesCount: correctNotes.length
+      correctNotesCount: correctNotes.length,
+      errors: errorCount,
+      success
     };
+    
+    console.log("Adding progress entry:", progressEntry);
     
     setProgress(prev => [...prev, progressEntry]);
     
-    // Show completion feedback
-    setFeedbackMessage(`Challenge completed in ${(timeTaken / 1000).toFixed(2)} seconds!`);
-    setShowFeedback(true);
-    setAnimation('complete');
-    
-    // Start next challenge after a delay
-    setTimeout(() => {
-      startNewChallenge();
-    }, 2000);
-  }, [startTime, currentString, currentNote, correctNotes.length, startNewChallenge]);
-  
-  const handleNoteDetected = useCallback((detectedNote: PlayedNote) => {
-    if (detectedNote.octave === 'first') {
-      setCorrectNotes(['first']);
-      setFeedbackMessage(`Correct! ${detectedNote.note} detected. Now play the next octave.`);
-    } else if (detectedNote.octave === 'next') {
-      setCorrectNotes(['first', 'next']);
-      setFeedbackMessage(`Correct! ${detectedNote.note} in the next octave detected.`);
-      completeChallenge();
+    // Play sound based on success/failure if not in detector mode and not muted
+    if (!showNoteDetector && !isMuted) {
+      playSound(success ? 'success' : 'error', isMuted);
     }
-
+    
+    // Show completion feedback - using challenge elapsed time not total time
+    if (success) {
+      setFeedbackMessage(`Challenge completed in ${(timeTaken / 1000).toFixed(2)} seconds!`);
+      setAnimation('complete');
+    } else {
+      setFeedbackMessage(`Challenge failed. Too many errors. Try again!`);
+      setAnimation('error');
+    }
     setShowFeedback(true);
-    setAnimation('success');
-    setPlayedNotes(prev => [...prev, detectedNote]);
-  }, [completeChallenge]);
-
-  // Pass the selected deviceId to usePitchDetection
-  const { 
-    isInitialized, 
-    error, 
-    initAudio, 
-    audioData, 
-    isCorrectNote, 
-    detectedNotes,
-    currentDetectedNote,
-    currentDetectedFrequency,
-    currentCents
-  } = usePitchDetection({
-    isListening,
-    isPaused,
-    isMuted,
-    currentNote,
-    currentString,
-    onNoteDetected: handleNoteDetected,
-    deviceId: selectedDeviceId
-  });
+    
+    // Start next challenge after a delay if not in detector mode
+    if (!showNoteDetector) {
+      setTimeout(() => {
+        startNewChallenge();
+      }, 2000);
+    }
+  }, [elapsedTime, currentString, currentNote, correctNotes.length, errorCount, isMuted, showNoteDetector, startNewChallenge]);
 
  // Toggle pause state
   const togglePause = useCallback(() => {
+    if (showNoteDetector) return; // Don't toggle pause in detector mode
+    
     setIsPaused(prev => {
       const newState = !prev;
       if (newState) {
@@ -150,7 +242,7 @@ const GuitarFretboardTrainer: React.FC = () => {
       }
       return newState;
     });
-  }, [pauseTimer, resumeTimer]);
+  }, [showNoteDetector, pauseTimer, resumeTimer]);
 
   // Toggle mute state
   const toggleMute = useCallback(() => {
@@ -160,8 +252,37 @@ const GuitarFretboardTrainer: React.FC = () => {
   // Handle microphone device selection
   const handleDeviceSelect = useCallback((deviceId: string) => {
     setSelectedDeviceId(deviceId);
-    // The effect in usePitchDetection will reinitialize the audio with new device
   }, [setSelectedDeviceId]);
+
+  // Handle sensitivity change
+  const handleSensitivityChange = useCallback((value: number) => {
+    setSensitivity(value);
+  }, []);
+
+  // Toggle note detector mode
+  const toggleNoteDetector = useCallback(() => {
+    setShowNoteDetector(prev => {
+      if (!prev) {
+        // Entering detector mode
+        setWasPausedBeforeDetector(isPaused);
+        
+        // Force pause the game
+        if (!isPaused) {
+          pauseTimer();
+        }
+        
+        // Hide any feedback that might be showing
+        setShowFeedback(false);
+        return true;
+      } else {
+        // Exiting detector mode - restore previous pause state
+        if (!wasPausedBeforeDetector) {
+          resumeTimer();
+        }
+        return false;
+      }
+    });
+  }, [isPaused, pauseTimer, resumeTimer, wasPausedBeforeDetector]);
 
   // Export progress data
   const handleExportCSV = useCallback(() => {
@@ -194,12 +315,11 @@ const GuitarFretboardTrainer: React.FC = () => {
     }
   }, [animation]);
 
-  // Debug effect to monitor detected notes
-  useEffect(() => {
-    if (detectedNotes.length) {
-      console.log('Recent detected notes:', detectedNotes.slice(-5));
-    }
-  }, [detectedNotes]);
+  // Handle strings selection change
+  const handleStringSelectionChange = useCallback((newSelectedStrings: number[]) => {
+    console.log("String selection changed:", newSelectedStrings);
+    setSelectedStrings(newSelectedStrings);
+  }, []);
 
   return (
     <div className="flex flex-col items-center min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white p-6">
@@ -216,6 +336,10 @@ const GuitarFretboardTrainer: React.FC = () => {
         isLoadingDevices={isLoadingDevices}
         devicesError={devicesError}
         onRefreshDevices={refreshDevices}
+        sensitivity={sensitivity}
+        onSensitivityChange={handleSensitivityChange}
+        onToggleNoteDetector={toggleNoteDetector}
+        showNoteDetector={showNoteDetector}
       />
 
       {!isStarted ? (
@@ -224,15 +348,18 @@ const GuitarFretboardTrainer: React.FC = () => {
         <div className={`w-full max-w-4xl ${animation ? `animate-${animation}` : ''}`}>
           <StringSelector
             selectedStrings={selectedStrings}
-            onChange={setSelectedStrings}
+            onChange={handleStringSelectionChange}
           />
+          
           <WaveformVisualizer 
             audioData={audioData}
+            rawAudioData={rawAudioData}
             isListening={isListening}
             currentString={currentString}
             isCorrectNote={isCorrectNote}
             detectedNote={currentDetectedNote}
             detectedFrequency={currentDetectedFrequency}
+            targetNote={currentNote}
             cents={currentCents}
           />
           
@@ -243,25 +370,44 @@ const GuitarFretboardTrainer: React.FC = () => {
               currentString={currentString}
               currentNote={currentNote}
               correctNotes={correctNotes}
-              onStringSelect={handleStringSelect}
             />
           )}
           
           <FeedbackDisplay 
             message={feedbackMessage}
-            show={showFeedback}
+            show={showFeedback && !showNoteDetector} // Hide feedback in detector mode
           />
           
           <ProgressStats 
             progress={progress}
             elapsedTime={elapsedTime}
             correctNotes={correctNotes}
+            errorCount={errorCount}
+            maxErrors={maxErrors}
           />
+          
+          {progress.length > 0 && (
+            <TimeHistogram progress={progress} />
+          )}
         </div>
       )}
       
+      {showNoteDetector && isStarted && (
+        <NoteDetector
+          audioData={audioData}
+          rawAudioData={rawAudioData}
+          detectedNote={currentDetectedNote}
+          detectedFrequency={currentDetectedFrequency}
+          cents={currentCents}
+          isListening={true}
+          onExit={toggleNoteDetector}
+          sensitivity={sensitivity}
+          onSensitivityChange={handleSensitivityChange}
+        />
+      )}
+      
       <footer className="mt-auto pt-8 text-gray-500 text-sm">
-        <p>Play each note in both octaves to complete the challenge.</p>
+        <p>Play each note in both octaves to complete the challenge. Max {maxErrors} errors allowed.</p>
         {error && <p className="text-red-400 mt-2">{error}</p>}
       </footer>
     </div>
