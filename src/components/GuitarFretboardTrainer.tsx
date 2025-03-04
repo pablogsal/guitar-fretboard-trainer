@@ -25,7 +25,7 @@ const GuitarFretboardTrainer: React.FC = () => {
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [currentString, setCurrentString] = useState<number>(1);
   const [currentNote, setCurrentNote] = useState<string>('');
-  const [playedNotes, setPlayedNotes] = useState<PlayedNote[]>([]);
+  const [,setPlayedNotes] = useState<PlayedNote[]>([]);
   const [correctNotes, setCorrectNotes] = useState<string[]>([]);
   const [progress, setProgress] = useState<ProgressEntry[]>([]);
   const [feedbackMessage, setFeedbackMessage] = useState<string>('');
@@ -33,7 +33,7 @@ const GuitarFretboardTrainer: React.FC = () => {
   const [animation, setAnimation] = useState<string>('');
   const [selectedStrings, setSelectedStrings] = useState<number[]>([1, 2, 3, 4, 5, 6]);
   const [errorCount, setErrorCount] = useState<number>(0);
-  const [maxErrors, setMaxErrors] = useState<number>(3); // Maximum errors allowed before failing
+  const [maxErrors] = useState<number>(3); // Maximum errors allowed before failing
   const [isChallengeFailed, setIsChallengeFailed] = useState<boolean>(false);
   const [sensitivity, setSensitivity] = useState<number>(50); // Default medium sensitivity
   const [showNoteDetector, setShowNoteDetector] = useState<boolean>(false);
@@ -53,7 +53,7 @@ const GuitarFretboardTrainer: React.FC = () => {
   } = useAudioDevices();
 
   // Custom hooks
-  const { countdown, countdownActive, elapsedTime, startTime, startCountdown, resetTimer, pauseTimer, resumeTimer } = 
+  const { countdown, countdownActive, elapsedTime, startCountdown, resetTimer, pauseTimer, resumeTimer } = 
     useTimer({ 
       onComplete: () => {
         // Start listening and record the actual challenge start time
@@ -112,13 +112,11 @@ const GuitarFretboardTrainer: React.FC = () => {
 
   // Pass the selected deviceId to usePitchDetection
   const { 
-    isInitialized, 
     error, 
     initAudio, 
     audioData,
     rawAudioData, 
     isCorrectNote, 
-    detectedNotes,
     currentDetectedNote,
     currentDetectedFrequency,
     currentCents,
@@ -145,21 +143,11 @@ const GuitarFretboardTrainer: React.FC = () => {
     }
   }, [sensitivity, updateSensitivity]);
 
-  // Handle individual string selection
-  const handleStringSelect = useCallback((stringNumber: number) => {
-    const challenge = generateRandomChallenge(stringNumber);
-    setCurrentString(challenge.string);
-    setCurrentNote(challenge.note);
-    currentChallengeRef.current = challenge;
-    resetTimer();
-    startCountdown(3);
-  }, [resetTimer, startCountdown]);
-
   // Start a new challenge
   const startNewChallenge = useCallback(() => {
     if (isPaused || showNoteDetector) return;
     
-    setPlayedNotes([]);
+    // setPlayedNotes([]);
     setCorrectNotes([]);
     setFeedbackMessage('');
     setShowFeedback(false);
@@ -401,13 +389,11 @@ const GuitarFretboardTrainer: React.FC = () => {
           
           <WaveformVisualizer 
             audioData={audioData}
-            rawAudioData={rawAudioData}
             isListening={isListening}
             currentString={currentString}
             isCorrectNote={isCorrectNote}
             detectedNote={currentDetectedNote}
             detectedFrequency={currentDetectedFrequency}
-            targetNote={currentNote}
             cents={currentCents}
           />
 

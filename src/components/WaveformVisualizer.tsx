@@ -4,6 +4,7 @@ import { getDetunePercent } from '../libs/Helpers';
 
 interface WaveformVisualizerProps {
   audioData: Uint8Array | null;
+  rawAudioData?: Uint8Array | null; // Added this property
   isListening: boolean;
   currentString: number;
   isCorrectNote: boolean;
@@ -149,7 +150,7 @@ const WaveformVisualizer: React.FC<WaveformVisualizerProps> = ({
     return { note: noteName, octave};
   };
   
-  const { note, octave} = parseNoteInfo();
+  const { note, octave: _octave } = parseNoteInfo(); // Renamed to _octave to indicate it's unused
   
   return (
     <div className="relative waveform-container w-full bg-gray-800/50 rounded-lg overflow-hidden mb-6">

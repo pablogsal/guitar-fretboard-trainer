@@ -73,7 +73,7 @@ export const exportProgressAsCSV = (progress: ProgressEntry[]): void => {
   let csv = 'Date,Time,String,String Number,Note,Time Taken (ms),Correct Notes,Errors,Success\n';
   
   // Add each progress entry
-  progress.forEach(entry => {
+  progress.forEach((entry: ProgressEntry) => {
     const date = new Date(entry.date);
     const formattedDate = `${date.toLocaleDateString()}`;
     const formattedTime = `${date.toLocaleTimeString()}`;
@@ -81,7 +81,7 @@ export const exportProgressAsCSV = (progress: ProgressEntry[]): void => {
     // Get the string number (either from stringNumber field or by parsing string label)
     const stringNumber = 'stringNumber' in entry 
       ? entry.stringNumber 
-      : parseInt(entry.string.charAt(0));
+      : parseInt((entry as { string: string }).string.charAt(0));
     
     csv += `${formattedDate},${formattedTime},${entry.string},${stringNumber},${entry.note},${entry.timeTaken},${entry.correctNotesCount},${entry.errors},${entry.success}\n`;
   });

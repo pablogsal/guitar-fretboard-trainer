@@ -94,11 +94,9 @@ export const processDetectedNote = (
   
   // Find the most stable note
   let maxCount = 0;
-  let mostStableNote = '';
-  Object.entries(noteCounts).forEach(([note, data]) => {
+  Object.entries(noteCounts).forEach(([, data]) => {
     if (data.count > maxCount) {
       maxCount = data.count;
-      mostStableNote = note;
     }
   });
   

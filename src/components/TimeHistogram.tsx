@@ -1,5 +1,5 @@
 // src/components/TimeHistogram.tsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ProgressEntry } from '../types';
 import { STRING_COLORS, getStringLabel, GUITAR_STRINGS } from '../utils/noteUtils';
 import _ from 'lodash';
@@ -35,9 +35,9 @@ const TimeHistogram: React.FC<TimeHistogramProps> = ({ progress }) => {
       }
       
       // Fallback to string parsing if stringNumber not available
-      if (typeof entry.string === 'string') {
+      if (typeof (entry as ProgressEntry).string === 'string') {
         // Extract the number from the string label (e.g., "1 (E)" -> 1)
-        const stringNumber = parseInt(entry.string.charAt(0));
+        const stringNumber = parseInt((entry as ProgressEntry).string.charAt(0));
         return stringNumber === filter;
       }
       

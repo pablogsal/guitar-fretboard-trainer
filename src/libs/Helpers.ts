@@ -64,8 +64,8 @@ export function isValidGuitarFrequency(frequency: number): boolean {
  * @returns Range object with min and max frequencies
  */
 export function getStringFrequencyRange(stringNumber: number): { min: number, max: number } {
-  // Basic open frequencies
-  const openFreq = OPEN_STRING_FREQUENCIES[stringNumber] || 0;
+  // Basic open frequencies - ensure stringNumber is a valid key
+  const openFreq = OPEN_STRING_FREQUENCIES[stringNumber as keyof typeof OPEN_STRING_FREQUENCIES] || 0;
   
   // Calculate frequency ranges based on string
   switch (stringNumber) {

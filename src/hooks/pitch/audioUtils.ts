@@ -1,5 +1,4 @@
-// src/hooks/pitch/audioUtils.ts
-import { ProcessVolumeResult, AudioInitOptions, AudioServices } from './types';
+import { ProcessVolumeResult } from './types';
 
 /**
  * Check if a frequency is valid for guitar
@@ -73,14 +72,12 @@ export const initializeAudio = async (
           deviceId: { exact: deviceId },
           echoCancellation: true,
           autoGainControl: true,
-          noiseSuppression: true,
-          latency: 0
+          noiseSuppression: true
         }
       : {
           echoCancellation: true,
           autoGainControl: true,
-          noiseSuppression: true,
-          latency: 0
+          noiseSuppression: true
         }
   };
 

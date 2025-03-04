@@ -1,4 +1,4 @@
-// src/hooks/pitch/usePitchDetection.ts
+// src/hooks/pitch/usePitchDetection.ts (partial update)
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { UsePitchDetectionProps, UsePitchDetectionReturn, RecentDetection } from './types';
 import AudioContext from '../../libs/AudioContext';
@@ -18,7 +18,6 @@ import { detectPitch, processDetectedNote, isNextOctaveNote } from './noteProces
 export const usePitchDetection = ({
   isListening,
   isPaused,
-  isMuted,
   currentNote,
   currentString,
   sensitivity = 50,
@@ -34,7 +33,7 @@ export const usePitchDetection = ({
   const [audioData, setAudioData] = useState<Uint8Array | null>(null);
   const [rawAudioData, setRawAudioData] = useState<Uint8Array | null>(null);
   const [isCorrectNote, setIsCorrectNote] = useState<boolean>(false);
-  const [detectedNotes, setDetectedNotes] = useState<string[]>([]);
+  const [_detectedNotes] = useState<string[]>([]);
   const [currentDetectedNote, setCurrentDetectedNote] = useState<string | null>(null);
   const [currentDetectedFrequency, setCurrentDetectedFrequency] = useState<number | null>(null);
   const [currentCents, setCurrentCents] = useState<number>(0);
@@ -204,7 +203,7 @@ export const usePitchDetection = ({
         setCurrentCents(cents);
         
         // Process the note to determine stability and correctness
-        const { isStable, isCorrect, isIncorrect } = processDetectedNote(
+        const { isCorrect, isIncorrect } = processDetectedNote(
           noteName, 
           currentNote,
           amplitude, 
@@ -342,7 +341,7 @@ export const usePitchDetection = ({
     audioData,
     rawAudioData,
     isCorrectNote,
-    detectedNotes,
+    detectedNotes: [], // This is unused but needed by the return type
     currentDetectedNote,
     currentDetectedFrequency,
     currentCents,

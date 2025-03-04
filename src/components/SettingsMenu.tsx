@@ -1,6 +1,6 @@
 // src/components/SettingsMenu.tsx
 import React, { useState } from 'react';
-import { Settings as SettingsIcon, Volume2, VolumeX, Mic } from 'lucide-react';
+import { Settings as SettingsIcon, Mic } from 'lucide-react';
 import MicrophoneSelector from './MicrophoneSelector';
 
 interface SettingsMenuProps {

@@ -6,7 +6,7 @@ export const NOTE_STRINGS = [
   "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
 ];
 export const GUITAR_STRINGS = [1, 2, 3, 4, 5, 6]; // 1 is highest E, 6 is lowest E
-export const STRING_NOTES = {
+export const STRING_NOTES: { [key: number]: string } = {
   1: 'E', // Highest E
   2: 'B',
   3: 'G',
@@ -14,7 +14,7 @@ export const STRING_NOTES = {
   5: 'A',
   6: 'E'  // Lowest E
 };
-export const STRING_COLORS: Record<number, string> = {
+export const STRING_COLORS: { [key: number]: string } = {
   1: '#9442e4', // Highest E (purple)
   2: '#4290e4', // B (blue)
   3: '#42e45c', // G (green)
@@ -24,7 +24,7 @@ export const STRING_COLORS: Record<number, string> = {
 };
 
 // Standard frequencies for guitar open strings
-export const OPEN_STRING_FREQUENCIES = {
+export const OPEN_STRING_FREQUENCIES: { [key: number]: number } = {
   1: 329.63, // High E
   2: 246.94, // B
   3: 196.00, // G
